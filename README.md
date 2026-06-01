@@ -176,3 +176,18 @@ You will be reviewed on:
 - **Is the image public?** Login-walled registries fail.
 
 This is a real Day-3 packaging exercise. Read carefully, modify intentionally, ship cleanly.
+
+## Image
+
+### Pull command
+```bash
+docker pull esliehmedova/m7-03-cat-detection:v2
+``` 
+
+### Run command
+```bash
+docker run --rm esliehmedova/m7-03-cat-detection:v2
+```
+
+### Image size
+119MB 
