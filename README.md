@@ -176,3 +176,27 @@ You will be reviewed on:
 - **Is the image public?** Login-walled registries fail.
 
 This is a real Day-3 packaging exercise. Read carefully, modify intentionally, ship cleanly.
+
+## Image
+
+1. **Pull command**
+
+   ```bash
+   docker pull raulito7/m7-03-cat-detection:v2
+   ```
+
+2. **Run command**
+
+   ```bash
+   docker run --rm raulito7/m7-03-cat-detection:v2
+   ```
+
+3. **Image size** — **214 MB** (uncompressed, on-disk; ~59 MB compressed at the registry). Well under the ~250 MB bar — a single-stage build would be ~600 MB.
+
+4. **Sample output**
+
+   ```
+   ONNX model loaded OK: /home/app/model.onnx
+     inputs:  1
+     outputs: 1
+   ```
