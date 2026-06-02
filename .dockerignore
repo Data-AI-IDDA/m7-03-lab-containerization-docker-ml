@@ -6,6 +6,7 @@ README.md
 readme_exported.md
 DOCKERFILE_NOTES.md
 *.md
+best.onnx
 
 # Keep these — the build needs them:
 #   src/                  ← C verifier source
