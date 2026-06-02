@@ -4,8 +4,26 @@
 *.onnx
 model.onnx
 
+# Python bytecode (not used in this lab, but common local noise)
+__pycache__/
+*.pyc
+*.pyo
+
+# Large / transient build artifacts
+*.tgz
+*.tar.gz
+*.zip
+ort.tgz
+*.log
+.cache/
+build/
+dist/
+tmp/
+*.tmp
+
 # OS junk
 .DS_Store
+Thumbs.db
 
 # Editor noise
 .vscode/

@@ -7,7 +7,30 @@ readme_exported.md
 DOCKERFILE_NOTES.md
 *.md
 
-# Keep these — the build needs them:
+# Python / notebook noise (not needed for the C verifier build)
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.ipynb
+.ipynb_checkpoints/
+
+# Cache and large transient artifacts
+.cache/
+*.tgz
+*.tar.gz
+*.zip
+ort.tgz
+*.log
+build/
+dist/
+tmp/
+*.tmp
+
+# Keep these in the build context — do NOT add them here:
 #   src/                  ← C verifier source
-#   model.onnx            ← your model artifact (NOT committed; brought in locally)
+#   model.onnx            ← required by COPY model.onnx (gitignored locally, not committed)
 #   Dockerfile            ← the build itself
+#
+# model.onnx is intentionally NOT listed above so Docker can copy it into the image.
