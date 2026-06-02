@@ -12,16 +12,17 @@
 # assessment into the repo root. The file is gitignored by default — do
 # NOT commit it.
 #
-# Build:    docker build -t <ns>/m7-03-cat-detection:v1 .
-# Run:      docker run --rm <ns>/m7-03-cat-detection:v1
+# Build:    docker build -t <ns>/m7-03-cat-detection:v2 .
+# Run:      docker run --rm <ns>/m7-03-cat-detection:v2
 # Verify:   uid should be 1001; image size should be < ~250 MB
 
 ARG ORT_VERSION=1.20.1
+ARG DEBIAN_DIGEST=sha256:0104b334637a5f19aa9c983a91b54c89887c0984081f2068983107a6f6c21eeb
 
 # ──────────────────────────────────────────────────────────────
 # Stage 1 — builder
 # ──────────────────────────────────────────────────────────────
-FROM debian:12-slim AS builder
+FROM debian:12-slim@${DEBIAN_DIGEST} AS builder
 ARG ORT_VERSION
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -55,8 +56,13 @@ RUN test -s /tmp/model.onnx \
 # ──────────────────────────────────────────────────────────────
 # Stage 2 — runtime
 # ──────────────────────────────────────────────────────────────
-FROM debian:12-slim AS runtime
+FROM debian:12-slim@${DEBIAN_DIGEST} AS runtime
 ARG ORT_VERSION
+
+LABEL model.source="m6-09-assessment"
+LABEL model.framework="ultralytics-yolo26"
+LABEL ort.version="${ORT_VERSION}"
+LABEL maintainer="kamalmusayev088"
 
 # Runtime-only deps: ca-certs for general hygiene; libstdc++6 because the
 # ONNX Runtime shared library uses C++ symbols internally
@@ -67,7 +73,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Non-root user
 RUN useradd --create-home --uid 1001 app
 
-# Copy the shared library (with symlinks preserved), the binary, and the model
+# Copy the shared library, the binary, and the model
 COPY --from=builder /opt/onnxruntime/lib/libonnxruntime.so* /usr/local/lib/
 COPY --from=builder /out/check_model /usr/local/bin/check_model
 COPY --from=builder --chown=app:app /tmp/model.onnx /home/app/model.onnx
@@ -77,5 +83,8 @@ ENV LD_LIBRARY_PATH=/usr/local/lib
 
 USER app
 WORKDIR /home/app
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD check_model /home/app/model.onnx || exit 1
 
 CMD ["check_model", "/home/app/model.onnx"]
