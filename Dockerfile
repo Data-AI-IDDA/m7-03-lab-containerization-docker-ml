@@ -1,4 +1,5 @@
-# Reference Dockerfile — m7-03 lab (Containerization with Docker for ML).
+# Modified Dockerfile — m7-03 lab (Containerization with Docker for ML).
+# v2: added provenance LABELs, pinned base image by digest, added HEALTHCHECK.
 #
 # Multi-stage build that:
 #   * Stage 1 (builder)  — fetches the ONNX Runtime release, compiles the
@@ -12,16 +13,18 @@
 # assessment into the repo root. The file is gitignored by default — do
 # NOT commit it.
 #
-# Build:    docker build -t <ns>/m7-03-cat-detection:v1 .
-# Run:      docker run --rm <ns>/m7-03-cat-detection:v1
+# Build:    docker build -t <ns>/m7-03-cat-detection:v2 .
+# Run:      docker run --rm <ns>/m7-03-cat-detection:v2
 # Verify:   uid should be 1001; image size should be < ~250 MB
 
 ARG ORT_VERSION=1.20.1
 
 # ──────────────────────────────────────────────────────────────
 # Stage 1 — builder
+# Base image pinned by digest for supply-chain hygiene (Task 3b).
+# Tag-based pulls can silently drift to a different image; digests cannot.
 # ──────────────────────────────────────────────────────────────
-FROM debian:12-slim AS builder
+FROM debian:12-slim@sha256:346dd1cba3caf44de9467ae428a9d38573f14665408acb80a615e2a7c3f9a2a4 AS builder
 ARG ORT_VERSION
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -54,9 +57,17 @@ RUN test -s /tmp/model.onnx \
 
 # ──────────────────────────────────────────────────────────────
 # Stage 2 — runtime
+# Base image pinned to same digest as builder stage (Task 3b).
 # ──────────────────────────────────────────────────────────────
-FROM debian:12-slim AS runtime
+FROM debian:12-slim@sha256:346dd1cba3caf44de9467ae428a9d38573f14665408acb80a615e2a7c3f9a2a4 AS runtime
 ARG ORT_VERSION
+
+# Task 3a — Provenance labels so the image carries its own audit trail.
+# ort.version uses the build ARG so it stays in sync with what was compiled.
+LABEL model.source="m6-09-assessment"
+LABEL model.framework="ultralytics-yolo26"
+LABEL ort.version="${ORT_VERSION}"
+LABEL maintainer="Jabrail-Atakishiyev"
 
 # Runtime-only deps: ca-certs for general hygiene; libstdc++6 because the
 # ONNX Runtime shared library uses C++ symbols internally
@@ -77,5 +88,10 @@ ENV LD_LIBRARY_PATH=/usr/local/lib
 
 USER app
 WORKDIR /home/app
+
+# Task 3c — HEALTHCHECK: same command as CMD is acceptable for a verifier
+# container. In a real serving container this would probe a /health endpoint.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD check_model /home/app/model.onnx || exit 1
 
 CMD ["check_model", "/home/app/model.onnx"]
