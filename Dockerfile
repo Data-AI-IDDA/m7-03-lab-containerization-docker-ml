@@ -31,9 +31,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Fetch and extract the official ONNX Runtime release tarball
 WORKDIR /opt
 RUN curl -sSL -o ort.tgz \
-        "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz" \
+        "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-aarch64-${ORT_VERSION}.tgz" \
     && tar -xzf ort.tgz \
-    && mv "onnxruntime-linux-x64-${ORT_VERSION}" onnxruntime \
+    && mv "onnxruntime-linux-aarch64-${ORT_VERSION}" onnxruntime \
     && rm ort.tgz
 
 # Compile the model verifier against the extracted library
@@ -55,9 +55,17 @@ RUN test -s /tmp/model.onnx \
 # ──────────────────────────────────────────────────────────────
 # Stage 2 — runtime
 # ──────────────────────────────────────────────────────────────
-FROM debian:12-slim AS runtime
+FROM debian:12-slim@sha256:0104b334637a5f19aa9c983a91b54c89887c0984081f2068983107a6f6c21eeb AS runtime
 ARG ORT_VERSION
 
+LABEL model.source="m6-09-assessment"
+LABEL model.framework="ultralytics-yolo26"
+LABEL ort.version="${ORT_VERSION}"
+LABEL maintainer="ShamilAliyew"
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD check_model /home/app/model.onnx || exit 1
+  
 # Runtime-only deps: ca-certs for general hygiene; libstdc++6 because the
 # ONNX Runtime shared library uses C++ symbols internally
 RUN apt-get update && apt-get install -y --no-install-recommends \
