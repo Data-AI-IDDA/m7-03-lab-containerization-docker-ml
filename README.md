@@ -180,5 +180,15 @@ This is a real Day-3 packaging exercise. Read carefully, modify intentionally, s
 ## Image
 
 ### Pull command
-```bash
 docker pull dirayeva06/m7-03-cat-detection:v2
+
+### Run command
+docker run --rm dirayeva06/m7-03-cat-detection:v2
+
+### Image size
+214MB
+
+### Sample output
+ONNX model loaded OK: /home/app/model.onnx
+  inputs:  1
+  outputs: 1
