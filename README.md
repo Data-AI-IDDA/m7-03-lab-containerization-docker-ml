@@ -176,3 +176,30 @@ You will be reviewed on:
 - **Is the image public?** Login-walled registries fail.
 
 This is a real Day-3 packaging exercise. Read carefully, modify intentionally, ship cleanly.
+
+
+## Image
+
+### Pull command
+
+```bash
+docker pull ilahes/m7-03-cat-detection:v2
+```
+
+### Run command
+
+```bash
+docker run --rm ilahes/m7-03-cat-detection:v2
+```
+
+### Image size
+
+215MB
+
+### Sample output
+
+```text
+ONNX model loaded OK: /home/app/model.onnx
+  inputs:  1
+  outputs: 1
+```
