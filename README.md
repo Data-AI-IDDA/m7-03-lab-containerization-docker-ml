@@ -1,91 +1,206 @@
 ![logo_ironhack_blue 7](https://user-images.githubusercontent.com/23629340/40541063-a07a0a8a-601a-11e8-91b5-2f13e4e6b441.png)
 
-# Lab | Time Series Visualization and Lightweight Modeling
+# Lab | Containerization with Docker for ML
 
 ## Overview
 
-This lab focuses on time series exploration, visualization, and simple modeling using a currency conversion rate dataset. You will load a multi‑currency time series, validate dates and numeric types, create informative plots, compute rolling features, and build a basic baseline model to reason about changes over time. The emphasis is on correctness, clear reasoning, and repeatable steps.
+You'll take your **cat-detection ONNX model** from the m6-09 Week-2 assessment and ship it inside a slim, multi-stage Docker image. **The repo already includes a working Dockerfile** — this lab is about reading it, understanding it, modifying it, and shipping the result. That's how junior platform engineers actually learn Docker on the job: read existing Dockerfiles, modify them, observe the build.
+
+This is a 90-minute hands-on lab. **No Python**. No HTTP server (Day 4 covers contracts; Day 5 covers serving at scale). The container's job is to be a *model verifier* — `docker run --rm <image>` loads the model with ONNX Runtime's C API and exits 0 if it parsed, 1 if not.
 
 ## Learning Goals
 
-By the end of the lab, you should be able to load and validate time series data, create meaningful visualizations, compute rolling statistics, and build a simple baseline model with clear evaluation checks.
+By the end of this lab you should be able to:
 
-## Setup and Context
+- Read a multi-stage Dockerfile and explain what each stage exists for
+- Modify a Dockerfile to add provenance metadata, pin a base image by digest, and wire up a HEALTHCHECK
+- Build, tag, push, and verify a public container image that runs as a non-root user under ~250 MB
 
-You will use the CSV dataset included in this repository: `data_safe_copy.csv`. The file contains daily currency conversion rates with a `Date` column and multiple currency pairs. Work in a notebook named `m1-08-viz-time-series-advanced-modeling-lab.ipynb`.
+## Setup
 
-## Requirements
+You need:
 
-- Fork this repository to your own GitHub account.
-- Clone your fork to your machine.
-- Use the included CSV file `data_safe_copy.csv` from the lab repository.
-- Make sure you can open and run Jupyter notebooks (for example via Jupyter Lab or VS Code).
+- Docker Desktop or Docker Engine (`docker --version` should work)
+- A free account on **Docker Hub** or **GitHub Container Registry** (your GitHub account works)
+- Your **`model.onnx`** from the m6-09 assessment (YOLO26 export). If you didn't keep a copy, grab it from your m6-09 lab repo.
 
-## Getting Started
+Fork and clone this repo. It contains:
 
-- Create a new notebook and name it `m1-08-viz-time-series-advanced-modeling-lab.ipynb`.
-- Confirm you can successfully load the CSV before you start plotting.
-- Before you submit, restart your kernel and run the notebook **top to bottom**.
+```
+Dockerfile               # working reference — you'll modify this
+.dockerignore            # working — adjust if you change scope
+.gitignore               # already excludes model.onnx
+src/
+└── check_model.c        # 27-line C verifier — do not modify
+```
+
+Drop your `model.onnx` into the repo root before building. It's gitignored, so it won't be committed.
 
 ## Tasks
 
-### Task 1: Load and validate the time series
+### Task 1 — Run the reference build, baseline the image
 
-Load the CSV into a DataFrame named `fx`. Parse `Date` as datetime and set it as the index. Confirm the index is sorted in ascending order and that all rate columns are numeric. Print the first five rows and the last five rows to verify the time span.
+1. Copy your `model.onnx` into the repo root.
+2. Build the image as-is:
+   ```bash
+   docker build -t <your-namespace>/m7-03-cat-detection:v1 .
+   ```
+3. Run it and confirm the verifier loads your model:
+   ```bash
+   docker run --rm <your-namespace>/m7-03-cat-detection:v1
+   ```
+   Expected output (your input/output counts may differ):
+   ```
+   ONNX model loaded OK: /home/app/model.onnx
+     inputs:  1
+     outputs: 1
+   ```
+4. Note the **baseline image size** from `docker images` — write it down; you'll compare against your final version.
 
-### Task 2: Create two focused visualizations
+If the reference build fails on your machine, that's a Task-1 deliverable: read the error, fix it, and write a one-paragraph post-mortem in `DOCKERFILE_NOTES.md` under a `## Baseline build` heading. (Most failures will be a stale Debian mirror or a corrupted ONNX Runtime download — try a retry first.)
 
-Select two currency pairs, one that ends with `USD` and one that begins with `USD`. Create a line plot for each pair over time. Add clear titles and labels. Then create a third plot that shows both series together on the same axes so you can compare their movement directionally.
+### Task 2 — Annotate the Dockerfile
 
-### Task 3: Rolling features and validation
+Create `DOCKERFILE_NOTES.md` and write a short, opinionated read-through. Required sections:
 
-Compute a 7‑day rolling mean and a 7‑day rolling standard deviation for the two currency pairs you selected. Store the rolling series with clear names. Print the first ten rows of the rolling results and confirm that missing values appear only where the window is incomplete.
+```markdown
+# Dockerfile Notes
 
-### Task 4: Simple baseline model
+## Baseline build
+- Image size: <MB>
+- Output of `docker run --rm <image>`:
+  <pasted>
 
-Build a one‑step‑ahead baseline forecast for one selected currency pair by shifting the series by one day. Create a new column `baseline_pred` and compute the absolute error between the actual value and the baseline prediction. Then compute the mean absolute error and print it.
+## Stage 1 (builder) — why it exists
+<one paragraph>
 
-Add a validation check that confirms the number of non‑missing predictions equals the number of rows minus one.
+## Stage 2 (runtime) — why it exists
+<one paragraph>
 
-### Task 5: Short report with checks
+## Three architectural decisions in this Dockerfile
+1. <name + 1-sentence "what would break if you removed it">
+2. <name + 1-sentence "what would break if you removed it">
+3. <name + 1-sentence "what would break if you removed it">
+```
 
-Write a small report dictionary that includes the chosen currency pairs, the rolling window size, the mean absolute error from the baseline model, and the date range of the dataset. Print the report and include one explicit check, such as confirming that the rolling window size you used matches the value in the report.
+Concrete prompts to choose from for the "three architectural decisions": multi-stage split, `--no-install-recommends`, the `apt-get … && rm -rf /var/lib/apt/lists/*` pattern, the validation gate (`file | grep -qi onnx`), copying the .so with a glob (`libonnxruntime.so*`) instead of one file, `LD_LIBRARY_PATH`, the non-root user, the position of `COPY model.onnx` in the build (cache impact).
 
-## Common Pitfalls and Debugging Notes
+Pick the three you find most consequential. Defend the choice.
 
-A common mistake is forgetting to parse the date column or set it as the index, which makes time‑based plots misleading. Another frequent issue is silently treating numeric columns as strings; always confirm dtypes after loading. If rolling results look wrong, check that the index is sorted and that the window size is correct.
+### Task 3 — Make three improvements
+
+Modify the `Dockerfile` to add **all three** of these. Each is a small, real improvement a platform team would actually ship.
+
+**3a. Add provenance LABELs to stage 2.**
+
+```dockerfile
+LABEL model.source="m6-09-assessment"
+LABEL model.framework="ultralytics-yolo26"
+LABEL ort.version="${ORT_VERSION}"
+LABEL maintainer="<your-github-handle>"
+```
+
+Verify with `docker image inspect <image> --format '{{json .Config.Labels}}'`.
+
+**3b. Pin the Debian base image by digest in both stages.**
+
+Replace `FROM debian:12-slim` with `FROM debian:12-slim@sha256:<digest>`. Get the current digest:
+
+```bash
+docker pull debian:12-slim
+docker inspect --format '{{index .RepoDigests 0}}' debian:12-slim
+```
+
+Use the printed digest. Both stages must pin to the same digest. (This is supply-chain hygiene — tag-based pulls can drift; digests can't.)
+
+**3c. Add a HEALTHCHECK to stage 2.**
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD check_model /home/app/model.onnx || exit 1
+```
+
+(For a verifier container the HEALTHCHECK is the same command as CMD — fine for this lab. In a real serving container it would hit a `/health` endpoint.)
+
+Rebuild after each change. Verify each one works:
+
+```bash
+docker build -t <your-namespace>/m7-03-cat-detection:v2 .
+docker run --rm <your-namespace>/m7-03-cat-detection:v2          # still loads
+docker inspect <your-namespace>/m7-03-cat-detection:v2 --format '{{.Config.Healthcheck}}'
+docker inspect <your-namespace>/m7-03-cat-detection:v2 --format '{{json .Config.Labels}}' | jq .
+```
+
+Record the v2 image size in `DOCKERFILE_NOTES.md` under `## Final build` along with a paste of the labels and the healthcheck spec.
+
+### Task 4 — Push and document
+
+```bash
+docker login                       # or: docker login ghcr.io
+docker push <your-namespace>/m7-03-cat-detection:v2
+```
+
+The image must be **public**.
+
+Update this README in the section titled `## Image` (add it at the bottom) with exactly these four items:
+
+1. **Pull command** — fenced shell block with the working `docker pull` command
+2. **Run command** — fenced shell block with `docker run --rm <image>`
+3. **Image size** — final image size in MB
+4. **Sample output** — the actual stdout from running your image
 
 ## Submission
 
-### What to submit
+Open a Pull Request to the lab repository with:
 
-Submit the following files:
-- The notebook file `m1-08-viz-time-series-advanced-modeling-lab.ipynb`
-
-### Definition of done (checklist)
-
-Before you submit, make sure:
-
-- [ ] The notebook runs **top to bottom** without errors after a kernel restart.
-- [ ] `Date` is parsed as datetime, set as the index, and sorted ascending.
-- [ ] You created the requested plots with titles/labels and selected the required currency pair patterns.
-- [ ] Rolling mean/std are computed and validated (missing values only where the window is incomplete).
-- [ ] Baseline forecast and MAE are computed on aligned data with the requested row-count check.
-- [ ] The notebook is saved and included in your git commit.
-
-### How to submit (Git workflow)
-
-- When you’re done, make sure all changes are saved, then run:
-
-```bash
-git add .
-git commit -m "Solved m1-08 lab"
-git push -u origin HEAD
+```
+Dockerfile                  # your modified version (v2)
+.dockerignore               # adjust only if you changed scope
+.gitignore                  # already in starter
+DOCKERFILE_NOTES.md         # NEW — your annotations and observations
+README.md                   # with the ## Image section completed
+src/check_model.c           # unchanged
 ```
 
-- Make a pull request.
-- Paste the link to your pull request in the Student Portal.
+**Do not commit `model.onnx`.** Paste the PR link as your deliverable. The PR description must include the public `docker pull` command on its own line.
 
-## Evaluation Criteria
+## Quality bar
 
-Your work will be evaluated on correctness, clarity, and structure. Correctness means your plots and rolling calculations reflect the intended logic and your baseline model errors are computed on aligned data. Clarity means your code is readable and your variables are clearly named. Structure means the notebook runs cleanly from top to bottom with each task completed in order and with visible outputs.
+You will be reviewed on:
+
+- **Does the image actually run** when pulled fresh, and produce the expected stdout?
+- **All three improvements applied:** LABELs visible, base pinned by digest, HEALTHCHECK present? Inspecting the image must prove each one.
+- **Are the annotations specific?** "It's multi-stage so the image is smaller" fails the bar. "Without stage 1's build-essential we couldn't compile check_model; without stage 2 discarding it we'd ship a 600 MB image" passes.
+- **Is the final image under ~250 MB?** A non-multi-stage build would be ~600 MB; if you're there, the change didn't land.
+- **Is the user non-root?** `docker run --rm --entrypoint /bin/sh <image> -c id` must show uid 1001.
+- **Is the image public?** Login-walled registries fail.
+
+This is a real Day-3 packaging exercise. Read carefully, modify intentionally, ship cleanly.
+
+---
+
+## Image
+
+### Pull command
+
+```shell
+docker pull rrrevan/m7-03-cat-detection:v2
+```
+
+### Run command
+
+```shell
+docker run --rm rrrevan/m7-03-cat-detection:v2
+```
+
+### Image size
+
+**268 MB**
+
+### Sample output
+
+```
+ONNX model loaded OK: /home/app/model.onnx
+  inputs:  1
+  outputs: 1
+```
