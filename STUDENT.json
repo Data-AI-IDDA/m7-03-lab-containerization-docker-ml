@@ -1,0 +1,17 @@
+{
+  "first_name": "Qonche",
+  "last_name": "Ismayilova",
+  "team": "qonche-ismayilova",
+  "model": {
+    "framework": "yolo26",
+    "variant": "yolo26n",
+    "imgsz": 640,
+    "epochs_total": 15,
+    "tricks": [
+      "augmentation",
+      "cos_lr",
+      "weight_decay"
+    ]
+  },
+  "notes": "Final Assessment"
+}
