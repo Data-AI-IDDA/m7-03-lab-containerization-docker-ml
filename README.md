@@ -6,7 +6,7 @@
 
 You'll take your **cat-detection ONNX model** from the m6-09 Week-2 assessment and ship it inside a slim, multi-stage Docker image. **The repo already includes a working Dockerfile** — this lab is about reading it, understanding it, modifying it, and shipping the result. That's how junior platform engineers actually learn Docker on the job: read existing Dockerfiles, modify them, observe the build.
 
-This is a 90-minute hands-on lab. **No Python**. No HTTP server (Day 4 covers contracts; Day 5 covers serving at scale). The container's job is to be a *model verifier* — `docker run --rm <image>` loads the model with ONNX Runtime's C API and exits 0 if it parsed, 1 if not.
+This is a 90-minute hands-on lab. **No Python**. No HTTP server (Day 4 covers contracts; Day 5 covers serving at scale). The container's job is to be a _model verifier_ — `docker run --rm <image>` loads the model with ONNX Runtime's C API and exits 0 if it parsed, 1 if not.
 
 ## Learning Goals
 
@@ -67,17 +67,21 @@ Create `DOCKERFILE_NOTES.md` and write a short, opinionated read-through. Requir
 # Dockerfile Notes
 
 ## Baseline build
+
 - Image size: <MB>
 - Output of `docker run --rm <image>`:
   <pasted>
 
 ## Stage 1 (builder) — why it exists
+
 <one paragraph>
 
 ## Stage 2 (runtime) — why it exists
+
 <one paragraph>
 
 ## Three architectural decisions in this Dockerfile
+
 1. <name + 1-sentence "what would break if you removed it">
 2. <name + 1-sentence "what would break if you removed it">
 3. <name + 1-sentence "what would break if you removed it">
@@ -148,6 +152,32 @@ Update this README in the section titled `## Image` (add it at the bottom) with 
 2. **Run command** — fenced shell block with `docker run --rm <image>`
 3. **Image size** — final image size in MB
 4. **Sample output** — the actual stdout from running your image
+
+## Image
+
+### Pull command
+
+```bash
+docker pull adilhasanov/m7-03-cat-detection:v2
+```
+
+### Run command
+
+```bash
+docker run --rm adilhasanov/m7-03-cat-detection:v2
+```
+
+### Image size
+
+214 MB
+
+### Sample output
+
+```text
+ONNX model loaded OK: /home/app/model.onnx
+  inputs:  1
+  outputs: 1
+```
 
 ## Submission
 
