@@ -1,0 +1,13 @@
+# Don't ship these into the build context.
+.git/
+.gitignore
+.dockerignore
+README.md
+readme_exported.md
+DOCKERFILE_NOTES.md
+*.md
+
+# Keep these — the build needs them:
+#   src/                  ← C verifier source
+#   model.onnx            ← your model artifact (NOT committed; brought in locally)
+#   Dockerfile            ← the build itself
