@@ -21,7 +21,7 @@ ARG ORT_VERSION=1.20.1
 # ──────────────────────────────────────────────────────────────
 # Stage 1 — builder
 # ──────────────────────────────────────────────────────────────
-FROM debian:12-slim AS builder
+FROM debian:12-slim@sha256:0104b334637a5f19aa9c983a91b54c89887c0984081f2068983107a6f6c21eeb AS builder
 ARG ORT_VERSION
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -55,8 +55,17 @@ RUN test -s /tmp/model.onnx \
 # ──────────────────────────────────────────────────────────────
 # Stage 2 — runtime
 # ──────────────────────────────────────────────────────────────
-FROM debian:12-slim AS runtime
+FROM debian:12-slim@sha256:0104b334637a5f19aa9c983a91b54c89887c0984081f2068983107a6f6c21eeb AS runtime
 ARG ORT_VERSION
+
+LABEL model.source="m6-09-assessment"
+LABEL model.framework="ultralytics-yolo26"
+LABEL ort.version="${ORT_VERSION}"
+LABEL maintainer="adilhasanov-glitch"
+
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD check_model /home/app/model.onnx || exit 1
 
 # Runtime-only deps: ca-certs for general hygiene; libstdc++6 because the
 # ONNX Runtime shared library uses C++ symbols internally
