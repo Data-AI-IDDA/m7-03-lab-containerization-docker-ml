@@ -1,0 +1,13 @@
+# Never commit model artifacts — they're bytes that belong in the
+# container, not in source control. Bring your model.onnx in locally
+# from your m6-09 assessment.
+*.onnx
+model.onnx
+
+# OS junk
+.DS_Store
+
+# Editor noise
+.vscode/
+.idea/
+*.swp
