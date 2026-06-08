@@ -11,3 +11,4 @@ model.onnx
 .vscode/
 .idea/
 *.swp
+model.onnx
