@@ -1,0 +1,102 @@
+# Modified Dockerfile — m7-03 lab v2
+#
+# Changes from reference (v1):
+#   3a  Provenance LABELs added to stage 2
+#   3b  Both FROM instructions pinned by digest (supply-chain hygiene)
+#   3c  HEALTHCHECK added to stage 2
+#
+# ── How to get the current digest (run locally before building): ──────────────
+#   docker pull debian:12-slim
+#   docker inspect --format '{{index .RepoDigests 0}}' debian:12-slim
+#   # prints: debian@sha256:<hash>
+#   # Copy the sha256:... part (without "debian@") into both FROM lines below.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Build:  docker build -t <ns>/m7-03-cat-detection:v2 .
+# Run:    docker run --rm <ns>/m7-03-cat-detection:v2
+# Verify: docker inspect <ns>/m7-03-cat-detection:v2 --format '{{json .Config.Labels}}'
+#         docker inspect <ns>/m7-03-cat-detection:v2 --format '{{.Config.Healthcheck}}'
+
+ARG ORT_VERSION=1.20.1
+
+# ──────────────────────────────────────────────────────────────
+# Stage 1 — builder
+# ──────────────────────────────────────────────────────────────
+# 3b: base image pinned by digest — tag "debian:12-slim" can silently move
+#     to a different commit on the next pull; a digest is immutable.
+#     Replace the sha256 value with the output of the inspect command above.
+FROM debian:12-slim@sha256:056653329ed9a985f2e1fcb76da48ad300561558ca9f4432e74db4d7fab1277c AS builder
+ARG ORT_VERSION
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential ca-certificates curl file \
+    && rm -rf /var/lib/apt/lists/*
+
+# Fetch and extract the official ONNX Runtime release tarball
+WORKDIR /opt
+RUN curl -sSL -o ort.tgz \
+        "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz" \
+    && tar -xzf ort.tgz \
+    && mv "onnxruntime-linux-x64-${ORT_VERSION}" onnxruntime \
+    && rm ort.tgz
+
+# Compile the model verifier against the extracted library
+WORKDIR /build
+COPY src/check_model.c .
+RUN mkdir -p /out \
+    && gcc -O2 -o /out/check_model check_model.c \
+        -I/opt/onnxruntime/include \
+        -L/opt/onnxruntime/lib \
+        -lonnxruntime
+
+# Validation gate — fail the build now if the model is missing/empty/bogus
+COPY model.onnx /tmp/model.onnx
+RUN test -s /tmp/model.onnx \
+    && file /tmp/model.onnx | grep -qi onnx \
+    && echo "Model SHA-256: $(sha256sum /tmp/model.onnx | awk '{print $1}')" \
+    && echo "Model size:    $(stat -c%s /tmp/model.onnx) bytes"
+
+# ──────────────────────────────────────────────────────────────
+# Stage 2 — runtime
+# ──────────────────────────────────────────────────────────────
+# 3b: same digest as stage 1 — both stages must pin to identical base.
+FROM debian:12-slim@sha256:056653329ed9a985f2e1fcb76da48ad300561558ca9f4432e74db4d7fab1277c AS runtime
+ARG ORT_VERSION
+
+# Runtime-only deps: ca-certs for general hygiene; libstdc++6 because the
+# ONNX Runtime shared library uses C++ symbols internally
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 3a: Provenance labels — record what model and framework produced this image.
+#     Visible via: docker image inspect <image> --format '{{json .Config.Labels}}'
+#     Replace <your-github-handle> with your actual GitHub username.
+LABEL model.source="m6-09-assessment"
+LABEL model.framework="ultralytics-yolo26"
+LABEL ort.version="${ORT_VERSION}"
+LABEL maintainer="<your-github-handle>"
+
+# Non-root user
+RUN useradd --create-home --uid 1001 app
+
+# Copy the shared library (with symlinks preserved), the binary, and the model.
+# The glob on libonnxruntime.so* copies the full versioned symlink chain
+# (libonnxruntime.so → libonnxruntime.so.1 → libonnxruntime.so.1.20.1).
+COPY --from=builder /opt/onnxruntime/lib/libonnxruntime.so* /usr/local/lib/
+COPY --from=builder /out/check_model                        /usr/local/bin/check_model
+COPY --from=builder --chown=app:app /tmp/model.onnx         /home/app/model.onnx
+
+# Tell the dynamic linker where to find libonnxruntime at runtime
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
+USER app
+WORKDIR /home/app
+
+# 3c: HEALTHCHECK — the same binary used as CMD doubles as the health probe.
+#     Docker will run this inside the container every 30 s.
+#     For a real serving container this would hit a /health HTTP endpoint.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD check_model /home/app/model.onnx || exit 1
+
+CMD ["check_model", "/home/app/model.onnx"]
